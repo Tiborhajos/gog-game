@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gog-game
+  labels:
+    app: gog-game
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gog-game
+  template:
+    metadata:
+      name: gog-game
+      labels:
+        app: gog-game
+    spec:
+      # Let's do it right this time. We don't want to ssh to the node, but we need a save dir.
+      # make it and yolo 777 it.
+
+      #onderstaande in Dockerfile
+      initContainers:
+        - name: create-dirs
+          image: busybox
+          command: ["/bin/sh", "-c"]
+          args: ["mkdir -p /data/game-data && chmod -R 777 /data/game-data"]
+          volumeMounts:
+            - mountPath: /game-data
+              name: gog-game-data
+              # Get all gog games from account if not present. Perhaps sync periodically or force sync met param.
+        - name: download-game
+          image: tiborhajos/gog-downloader
+          command: ["/bin/sh", "-c"]
+          args:
+            - sh /data/get-games.sh
+            - sh /data/download-game.sh
+          env:
+            - name: GOG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gog-secret
+                  key: GOG_USER
+            - name: GOG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gog-secret
+                  key: GOG_PASSWORD
+            # prod id: 1452598881, installer id: en3installer0, see https://api.gog.com/products/1452598881?expand=downloads,expanded_dlcs,description,screenshots,videos,related_products,changelog
+            - name: GOG_PRODUCT_ID
+              value: "1452598881" #starbound
+            - name: GOG_INSTALLER_ID
+              value: "en3installer0" #starbound ubuntu en
+            - name: GAME
+              value: "starbound"
+          volumeMounts:
+            - mountPath: /game-data
+              name: gog-game-data
+      containers:
+        - name: ubuntu-gog
+          image: tiborhajos/gog-game
+          command: ["/bin/sh", "-c"]
+          args:
+          - sh /data/download-game.sh
+          - sh /data/install-$GAME.sh
+          volumeMounts:
+            - mountPath: /data/gog-data
+              name: gog-game-data
+      volumes:
+        - name: gog-secret
+          secret:
+            secretName: gog-secret
+        - name: game-data
+          emptyDir: {}
+
+
+
+

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: steam-game
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      game: steam-game
+  template:
+    metadata:
+      labels:
+        game: steam-game
+    spec:
+      initContainers:
+        - name: create-data-dir
+          image: busybox
+          command: ["/bin/sh", "-c", "mkdir -p /data", "chmod 777 /data"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+        - name: steamcmd
+          image: cm2network/steamcmd:root
+          command: ["/home/steam/steamcmd/steamcmd.sh"]
+          args:
+            - "+login $(STEAM_USER) $(STEAM_PASSWORD)"
+            - "+force_install_dir /data"
+            - "+app_update $(GAME_ID)"
+            - "+quit"
+          env:
+            - name: STEAM_USER
+              valueFrom:
+                secretKeyRef:
+                  name: steam-secret
+                  key: STEAM_USER
+            - name: STEAM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: steam-secret
+                  key: STEAM_PASSWORD
+            - name: GAME_ID
+              value: "211820" # Starbound, modify if needed.
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: ubuntu-steam
+          image: ubuntu:18.04
+          command: ["/bin/bash", "-c", "exec /data/noarch/game/linux/starbound-server"] # change depending on game. 
+          ports:
+            - containerPort: 32001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: steam-secret
+          secret:
+            secretName: steam-secret
+        - name: data
+          emptyDir: {}

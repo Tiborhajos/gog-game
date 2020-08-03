@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starbound
+  labels:
+    app: starbound
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starbound
+  template:
+    metadata:
+      name: starbound
+      labels:
+        app: starbound
+    spec:
+      # Let's do it right this time. We don't want to ssh to the node, but we need a save dir.
+      # make it and yolo 777 it.
+
+      #onderstaande in Dockerfile
+      initContainers:
+        - name: create-dirs
+          image: busybox
+          command: ["/bin/sh", "-c"]
+          args: ["mkdir -p /starbound-data && chmod -R 777 /starbound-data"]
+          volumeMounts:
+            - mountPath: /starbound-data
+              name: starbound-data
+      containers:
+#        - name: ubuntu-gog
+        - name: ubuntu-starbound
+#          image: tiborhajos/gog-game
+          image: tiborhajos/starbound:latest
+          command: ["/bin/sh", "-c"]
+#          args:
+#          - lgogdownloader --login;
+#            cd /data/starbound;
+#            lgogdownloader --download-file starbound/$STARBOUND_INSTALLER_ID;
+#            unzip starbound*.sh;
+#            chmod -R 777 /data/starbound/data/noarch/game/linux
+#            sh /data/starbound/data/noarch/game/linux/start-starbound.sh
+          args:
+          - cd /data/starbound;
+            unzip starbound*.sh;
+            chmod -R 777 /data/starbound/data/noarch/game/linux;
+
+          volumeMounts:
+            - mountPath: /starbound-data
+              name: starbound-data
+          env:
+            - name: GOG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gog-secret
+                  key: GOG_USER
+            - name: GOG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gog-secret
+                  key: GOG_PASSWORD
+            # prod id: 1452598881, installer id: en3installer0, see https://api.gog.com/products/1452598881?expand=downloads,expanded_dlcs,description,screenshots,videos,related_products,changelog
+            - name: STARBOUND_PRODUCT_ID
+              value: "1452598881"
+            - name: STARBOUND_INSTALLER_ID
+              value: "en3installer0"
+      imagePullSecrets:
+        - name: dockerhub
+      volumes:
+        - name: gog-secret
+          secret:
+            secretName: gog-secret
+        - name: starbound-data
+          emptyDir: {}
+
+
+
+
